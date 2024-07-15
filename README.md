@@ -1,5 +1,3 @@
-# swarm_drones
+# infraredSignalDetector
 
-This is David Mun
-
-This is Mayank Dubey
+Script to read the infrared signals from drone.
