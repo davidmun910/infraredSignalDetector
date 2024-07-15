@@ -1,72 +1,122 @@
 import cv2
+
+# Open the default camera (usually the built-in webcam)
+cap = cv2.VideoCapture(1)
+
+# Check if the camera opened successfully
+if not cap.isOpened():
+    print("Error: Could not open camera.")
+    exit()
+
+while True:
+    # Capture frame-by-frame
+    ret, frame = cap.read()
+
+    # If frame is read correctly ret is True
+    if not ret:
+        print("Error: Could not read frame.")
+        break
+
+    # Display the resulting frame
+    cv2.imshow('Live Camera Feed', frame)
+
+    # Exit the loop when 'q' is pressed
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+# Release the camera and close all OpenCV windows
+cap.release()
+cv2.destroyAllWindows()
+import cv2
 import numpy as np
 
-def open_camera(camera_id):
-    cap = cv2.VideoCapture(camera_id)
-    if not cap.isOpened():
-        print(f"Error: Camera {camera_id} could not be opened.")
-    return cap
+# Define HSV color range for white light (adjust as needed)
+lower_white = np.array([0, 0, 170])
+upper_white = np.array([180, 25, 255])
 
-def detect_and_draw_circle(frame, color):
-    # Convert frame to grayscale for circle detection
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    gray = cv2.medianBlur(gray, 5)
-    
-    # Detect circles using HoughCircles
-    circles = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, dp=1, minDist=20, param1=50, param2=30, minRadius=10, maxRadius=50)
-    
-    if circles is not None:
-        circles = np.round(circles[0, :]).astype("int")
-        for (x, y, r) in circles:
-            # Draw the outer circle in purple
-            cv2.circle(frame, (x, y), r, (128, 0, 128), 2)
-            # Draw the center of the circle (purple filled)
-            cv2.circle(frame, (x, y), 2, (128, 0, 128), -1)
-    
-    return frame
+# Define purple color for replacement
+purple = (255, 0, 127)
+dot_radius = 5
 
-def main():
-    # Open three camera streams
-    cap1 = open_camera(1)
-    cap2 = open_camera(2)
-    cap3 = open_camera(3)
+def track_white_light(cap):
+  # Capture frame-by-frame
+  ret, frame = cap.read()
 
-    while True:
-        # Read frames from each camera
-        ret1, frame1 = cap1.read()
-        ret2, frame2 = cap2.read()
-        ret3, frame3 = cap3.read()
+  # Convert to HSV colorspace for better color detection
+  hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-        # Check if frames are successfully captured
-        if not ret1:
-            print("Failed to grab frame from camera 0")
-            break
-        if not ret2:
-            print("Failed to grab frame from camera 1")
-            break
-        if not ret3:
-            print("Failed to grab frame from camera 2")
-            break
+  # Create mask for white color
+  mask = cv2.inRange(hsv, lower_white, upper_white)
 
-        # Detect and draw circles on each frame
-        frame1_with_circles = detect_and_draw_circle(frame1, (255, 0, 0))  # Blue circles for camera 0
-        frame2_with_circles = detect_and_draw_circle(frame2, (0, 255, 0))  # Green circles for camera 1
-        frame3_with_circles = detect_and_draw_circle(frame3, (0, 0, 255))  # Red circles for camera 2
+  # Find contours in the mask
+  contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        # Display the frames with circles
-        cv2.imshow('Camera 0', frame1_with_circles)
-        cv2.imshow('Camera 1', frame2_with_circles)
-        cv2.imshow('Camera 2', frame3_with_circles)
+  # Find the largest contour (assuming white light is the biggest)
+  largest_contour = None
+  max_area = 0
+  for cnt in contours:
+    area = cv2.contourArea(cnt)
+    if area > max_area:
+      max_area = area
+      largest_contour = cnt
 
-        # Break the loop on 'q' key press
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+  # Check if a large enough contour is found
+  if largest_contour is not None:
+    # Get center of the contour (assuming white light is circular)
+    (x, y), radius = cv2.minEnclosingCircle(largest_contour)
+    center = np.int32([x, y])
 
-    # Release the capture and close windows
-    cap1.release()
-    cap2.release()
-    cap3.release()
-    cv2.destroyAllWindows()
+    # Draw a purple dot at the center
+    cv2.circle(frame, center, dot_radius, purple, -1)
+
+      # Black out everything else (optional)
+  frame = cv2.bitwise_and(frame, frame, mask=mask)
+
+  return frame
 
 if __name__ == "__main__":
-    main()
+  # Open multiple video captures (replace indexes if needed)
+  cap1 = cv2.VideoCapture(1)
+  cap2 = cv2.VideoCapture(2)
+  cap3 = cv2.VideoCapture(3)
+
+  # Define a window with a grid layout for 3 cameras (adjust as needed)
+  rows, cols = 2, 2  # 2 rows, 2 columns for a 3x3 grid (excluding empty space)
+  window_name = "Multi-Camera White Light Tracking"
+  # Set a larger window size (adjust width and height as desired)
+  window_width = 800
+  window_height = 600
+  cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+  cv2.resizeWindow(window_name, window_width, window_height) 
+
+  while True:
+    # Capture frames from each camera
+    frame1 = track_white_light(cap1)
+    frame2 = track_white_light(cap2)
+    frame3 = track_white_light(cap3)
+
+    # Resize frames if needed to fit the grid layout
+    frame_height, frame_width, _ = frame1.shape  # Assuming all frames have same size
+    new_width = int(window_width / cols)
+    new_height = int(window_height / rows)
+    frame1 = cv2.resize(frame1, (new_width, new_height))
+    frame2 = cv2.resize(frame2, (new_width, new_height))
+    frame3 = cv2.resize(frame3, (new_width, new_height))
+
+    # Create a canvas for displaying all frames
+    canvas = np.zeros((rows * new_height, cols * new_width, 3), dtype=np.uint8)
+
+    # Place each frame in its respective position on the canvas
+    canvas[0:new_height, 0:new_width] = frame1
+    canvas[0:new_height, new_width:2*new_width] = frame2
+    canvas[new_height:2*new_height, 0:new_width] = frame3  # Assuming 3 cameras
+
+    # Display the combined canvas
+    cv2.imshow(window_name, canvas)
+
+    # Quit if 'q' key is pressed
+    if cv2.waitKey(1) == ord('q'):
+      break
+
+  # Release captures and close windows
+  cap1.release()
