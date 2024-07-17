@@ -1,33 +1,4 @@
 import cv2
-
-# Open the default camera (usually the built-in webcam)
-cap = cv2.VideoCapture(1)
-
-# Check if the camera opened successfully
-if not cap.isOpened():
-    print("Error: Could not open camera.")
-    exit()
-
-while True:
-    # Capture frame-by-frame
-    ret, frame = cap.read()
-
-    # If frame is read correctly ret is True
-    if not ret:
-        print("Error: Could not read frame.")
-        break
-
-    # Display the resulting frame
-    cv2.imshow('Live Camera Feed', frame)
-
-    # Exit the loop when 'q' is pressed
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
-
-# Release the camera and close all OpenCV windows
-cap.release()
-cv2.destroyAllWindows()
-import cv2
 import numpy as np
 
 # Define HSV color range for white light (adjust as needed)
